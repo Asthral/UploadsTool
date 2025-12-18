@@ -121,7 +121,7 @@ if args.url:
         print("[+] Champs disponibles :")
         for idx, var in enumerate(vars):
             print(f"[{idx}] {var}")
-        field_name = vars[int(input("Choisis le numéro du champ d’upload : "))]
+        field_name = vars[int(input("\nChoisir un numéro de payload : "))]
 
     if args.auto:
         tests = payloads.keys()
@@ -134,16 +134,16 @@ if args.url:
 
     for idx in tests:
         payload = payloads[idx]
-        print(f"[*] Upload '{payload['file_name']}' sur '{field_name}'")
+        print(f"[+] Upload '{payload['file_name']}' sur la variable '{field_name}'")
 
         r = upload_file(args.url, field_name, payload, cookies, headers)
         res = analyze_response(r.text)
 
         if res["success"]:
-            print(f"[+] SUCCESS → {res['path']}")
+            print(f"[+] SUCCESS -> {res['path']}")
             print(html)
         else:
-            print(f"[-] FAIL → {res['error']}")
+            print(f"[-] FAIL -> {res['error']}")
             print(html)
     print("\n[+] Terminé")
 
