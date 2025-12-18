@@ -86,6 +86,8 @@ payloads = {
 
 if args.cookie:
     print("ok")
+if args.header:
+    print("ok")
 
 
 if args.url:
