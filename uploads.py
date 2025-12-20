@@ -27,8 +27,6 @@ _____/\\\\\\\\\\\\_____________________________________/\\\_____________/\\\____
        _\//\\\\\\\\\\\\/___\///\\\\\/____\///\\\\\/___\//\\\\\\\/\\___________\/\\\\\\\\\__\//\\\\/_______\//\\\\\\\\\\_ 
         __\////////////_______\/////________\/////______\///////\//____________\/////////____\////__________\//////////__"""
 
-
-
 #====================ARGUMENT====================
 parser = argparse.ArgumentParser()
 parser.add_argument('-u', '--url', dest='url', required=True, help='Url to exploit')
@@ -37,11 +35,29 @@ parser.add_argument('-a', '--auto', dest='auto', action='store_true', default=No
 parser.add_argument('-H', '--header', dest='header', default=None, help='Headers (h1:v1;h2:v2)')
 parser.add_argument('-d', '--details', dest='details', action='store_true', default=None, help='Show details of request / file send')
 parser.add_argument('-b', '--body', dest='body', default=None, help='Extra body (unused)')
+parser.add_argument('-i', '--dirb', dest='dirb', default=None, help='Wordlist to test url folder')
 args = parser.parse_args()
 
-
-
 #==========================FUNCTION=========================#
+def base_url(url):
+    return re.match(r'^(https?://[^/]+)', url).group(1)
+
+def filename_variants(name):
+    return [name.split('%00')[0], name] if '%00' in name else [name]
+
+def dirb(base, filename, wordlist):
+    with open(wordlist, 'r', errors='ignore') as f:
+        for line in f:
+            d = line.strip().strip('/')
+            print(d)
+            for fn in filename_variants(filename):
+                url = f"{base}/{d}/{fn}"
+                print(url)
+                r = requests.get(url)
+                if r.status_code == 200:
+                    print(f"[+] FOUND {url}")
+                    print(r.text[:300], "\n")
+
 def extract_vars(html):
     forms = re.findall(r"<form[\s\S]*?</form>", html, flags=re.IGNORECASE)
     names = set()
@@ -90,6 +106,7 @@ payloads = {
 
 cookies = None
 headers = None
+succes = []
 
 #====================================OPTIONS====================================#
 
@@ -132,7 +149,7 @@ if args.url:
         print("\n[+] Payloads disponibles :")
         for idx in payloads:
             print(f"[{idx}] {payloads[idx]['file_name']}")
-        tests = [int(input("Choisis le numéro du payload : "))]
+        tests = [int(input("\n[+] Choisis le numéro du payload : "))]
     print("\n[+] Lancement des tests...\n")
 
     for idx in tests:
@@ -149,6 +166,10 @@ if args.url:
             succes = succes.append(idx)
             if args.details:
                 print(f"{html}\n")
+            if args.dirb:
+                base = base_url(args.url)
+                dirb(base, payload['file_name'], args.dirb)
+
         else:
             print(f"[-] FAIL -> {res['error']}")
             if args.details:
