@@ -40,6 +40,7 @@ parser.add_argument('-H', '--header', dest='header', default=None, help='Headers
 parser.add_argument('-d', '--details', dest='details', action='store_true', default=None, help='Show details of request / file send')
 parser.add_argument('-b', '--body', dest='body', default=None, help='Extra body (unused)')
 parser.add_argument('-i', '--dirb', dest='dirb', default=None, help='Wordlist to test url folder')
+parser.add_argument('-p', '--perso', dest='perso', action='store_true', default=None, help='Personnalize your file to upload')
 args = parser.parse_args()
 
 #==========================FUNCTION=========================#
@@ -93,7 +94,14 @@ def upload_file(url, field_name, payload, cookies=None, headers=None):
     content = payload["content"]
     if isinstance(content, str):
         content = content.encode()
-    files = {field_name: (payload["file_name"], content, payload["mime"])}
+    if args.perso:
+        print("Example to personnalize your file :\nFile name : image.php\nContent file : <?php echo 'test'?>\nMIME file : image/gif\n")
+        ask_name = str(input("File name :"))
+        ask_content = str(input("Content file :"))
+        ask_mime = str(input("MIME file :"))
+        files = {field_name: (ask_name, ask_content, ask_mime)}
+    else:
+        files = {field_name: (payload["file_name"], content, payload["mime"])}
     req = requests.post(url, files=files, data={"submit": "OK"}, cookies=cookies, headers=headers)
     if args.details:
         print(req.text)
@@ -170,8 +178,13 @@ if args.cookie:
 if args.header:
     headers = dict(h.split(":", 1) for h in args.header.split(";"))
 #====================================OPTIONS====================================#
-print(main_payload)
+print(f"{main_payload}\n")
 
+
+if args.perso and args.auto:
+    print("[!] You can't send a personnalized file and send all payloads")
+    print(exit_payload)
+    exit()
 if args.url:
     print(f"[+] Target : {args.url}")
 
@@ -203,9 +216,9 @@ if args.url:
     for idx in test_payload:
         payload = payloads[idx]
         print(f"[+] Upload '{payload['file_name']}' sur la variable '{field_name}'")
+        res = upload_and_analyze(args.url, field_name, payload, cookies, headers)
         if args.details:
             print(f"{payload}\n")
-        res = upload_and_analyze(args.url, field_name, payload, cookies, headers)
 
         if not res["success"]:
             print(f"[-] FAIL -> {res['error']}")
