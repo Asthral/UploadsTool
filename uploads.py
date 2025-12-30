@@ -103,7 +103,7 @@ def upload_file(url, field_name, payload, cookies=None, headers=None):
         files = {field_name: (payload["file_name"], content, payload["mime"])}
     r = requests.post(url, files=files, data={"submit": "OK"}, cookies=cookies, headers=headers)
     if args.details:
-        print(f"#===================CONTENT PAGE===================\n{r.text}")
+        print(f"#===================================================CONTENT PAGE===================================================\n{r.text}")
     return r
 #==============================FUNCTION==============================
 def analyze_response(html):
@@ -136,15 +136,18 @@ def upload_and_analyze(url, field_name, payload, cookies=None, headers=None):
     r = upload_file(url, field_name, payload, cookies, headers)
     u = analyze_response(r.text)
     if args.details:
-        print(f"| analyze_response | {u}")
+        print("#============================#=============================================================#")
+        print(f"| Analyse response from html | {u}")
     return u
 #==============================FUNCTION==============================
 def find_uploaded_file(target_url, payload, returned_path,cookies=None, headers=None, wordlist=None):
     urls = find_file_urls(target_url, payload['file_name'], returned_path, wordlist)
     if args.details:
         for url in urls:
-            print(" +________________+_________________________________")
-            print(f'| find_file_urls | {url}')
+            print("#============================#================================================================================#")
+            print(f'| Url test for retreive file | {url}')
+        print("#============================#================================================================================#")
+
     for u in urls:
         r = requests.get(u, cookies=cookies, headers=headers)
         if r.status_code == 200:
@@ -235,10 +238,13 @@ if args.url:
         print(f"[+] Upload '{payload['file_name']}' sur la variable '{field_name}'")
         res = upload_and_analyze(args.url, field_name, payload, cookies, headers)
         if args.details:
-            print(f"| Content file | {payload}\n")
+            print(f"| Information file uploaded  | {payload}")
+            print("#============================#=============================================================#")
+
+            
 
         if not res["success"]:
-            print(f"[-] FAIL -> {res['error']}")
+            print(f"[-] FAIL -> {res['error']}\n")
             continue
 
         content, url = find_uploaded_file(args.url, payload, res["path"], cookies, headers, args.dirb)
@@ -260,9 +266,9 @@ if args.url:
                 if content:
                     print(content)
         else:
-            print(f"\n[!] File not found or file error : \n{content}\n")
+            print(f"\n[!] File not found or file error, content : \n{content}\n")
 
-    print("\n[+] Terminé")
+    print("[+] Terminé")
     print(exit_payload)
 
 else:
