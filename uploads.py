@@ -4,7 +4,7 @@ import base64
 import argparse
 import re
 import readline
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 import os
 import binascii
 
@@ -112,7 +112,7 @@ def analyze_response(html):
     result = {"success": False, "error": None, "path": None}
     err = re.search(r"(wrong|error|invalid|denied|fail)[^<]*", html, re.I)
     m = re.search(rf"(/[^\"'<>\s]*{re.escape(hash)}[^\"'<>\s]*)",html,re.I)
-    paths = re.findall(r"""href=['"]([^'"]*{0}[^'"]*)['"]""".format(re.escape(hash)),html,re.I)
+    paths = re.findall(rf"""href=['"]([^'"]*{re.escape(hash)}[^'"]*)['"]""",html,re.I)
 
     if err:
         result["error"] = err.group(0).strip()
@@ -176,7 +176,7 @@ def search_from_hash(base):
     links = re.findall(r"""href=['"]([^'"]+)['"]""", r.text, re.I)
 
     for l in links:
-        link = base + l.strip("'\"")
+        link = urljoin(base, l)
         page = session.get(link, cookies=cookies, headers=headers).text
         if args.details and not quiet:
             print("#============================#================================================================================#")
@@ -184,9 +184,14 @@ def search_from_hash(base):
             print("#============================#================================================================================#")
             print(page)
         if hash in page:
-            m = re.search(rf"(/[^\"'<>\s]*{re.escape(hash)}[^\"'<>\s]*)", page)
+            m = re.search(rf"""href=['"]([^'"]*{re.escape(hash)}[^'"]*)['"]""",page,re.I)
+            print(f"m : {m.group(1)}")
             if m:
-                return base.rstrip("/") + m.group(1)
+                real_path = m.group(1)
+                if real_path.startswith("./"):
+                    real_path = real_path[1:]
+                real_url = base.rstrip("/") + real_path
+                return real_url
     return None
 #==========================COOKIES + HEADERS==========================#
 cookies = None
@@ -284,7 +289,6 @@ if args.url:
                     print(content)
         else:
             print(res)
-            print()
             print(f"\n[!] File not found or file error, content : \n{content}\n")
 
     print("[+] Terminé")
