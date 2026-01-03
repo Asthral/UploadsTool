@@ -135,9 +135,11 @@ def analyze_response(html):
     return result
 #==============================FUNCTION==============================
 def upload_and_analyze(url, field_name, payload, cookies=None, headers=None):
+
+    global quiet
     r = upload_file(url, field_name, payload, cookies, headers)
     u = analyze_response(r.text)
-    if args.details:
+    if args.details and not quiet:
         print("#============================#=============================================================#")
         print(f"| Analyse response from html | {u}")
     return u
@@ -216,10 +218,10 @@ payloads = {
 #====================================OPTIONS====================================#
 print(f"{main_payload}\n")
 
-if args.perso and args.auto:
-    print("[!] You can't send a personnalized file and send all payloads")
-    print(exit_payload)
-    exit()
+#if args.auto and args.perso:
+#    print("[!] You can't send a personnalized file and send all payloads")
+#    print(exit_payload)
+#    exit()
 if args.url:
     print(f"[+] Target : {args.url}")
 
@@ -281,6 +283,8 @@ if args.url:
                 if content:
                     print(content)
         else:
+            print(res)
+            print()
             print(f"\n[!] File not found or file error, content : \n{content}\n")
 
     print("[+] Terminé")
